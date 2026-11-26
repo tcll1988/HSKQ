@@ -2,7 +2,7 @@ const main = document.querySelector('main');
 const dialog = document.querySelector('dialog');
 const modes = {all:'全40問の通し演習',listen:'リスニング',read:'読解'};
 const ranges = {all:[1,40],listen:[1,20],read:[21,40]};
-const storeKey = 'hsk-room-H11004-v1';
+const storeKey = 'hsk-room-'+paperId+'-v1';
 let state;
 try { state = JSON.parse(localStorage.getItem(storeKey)) || {}; } catch { state = {}; }
 state.drafts = state.drafts || {};
@@ -72,7 +72,7 @@ function setup(scope){
  const pref=state.preferences[scope]||{kind:'practice',order:'original'};
  const radio=(name,value,title,description,checked)=>`<label class="setting-option"><input type="radio" name="${name}" value="${value}" ${checked?'checked':''}><span><strong>${title}</strong><small>${description}</small></span></label>`;
  main.innerHTML=`<div class="crumb"><a href="#home">問題演習</a><em>/</em>${modes[scope]}</div>
-  <div class="quiz-head"><div><small class="micro">H11004 · ${ids(scope).length}問</small><h1>${modes[scope]}</h1></div></div>
+  <div class="quiz-head"><div><small class="micro">${paperId} · ${ids(scope).length}問</small><h1>${modes[scope]}</h1></div></div>
   <form id="session-settings" class="card settings">
    <fieldset><legend>学習モード</legend><div class="setting-grid">
    ${radio('kind','practice',sessionLabels.practice,'解答すると、正解とその理由が日本語で表示されます。間違えたら選び直してから進みます。',pref.kind==='practice')}
@@ -96,12 +96,19 @@ function setup(scope){
 
 function stats(r){return ids(r.mode).filter(n=>r.answers[n]===key[n-1]).length;}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function img(id){return '<img src="pictures/'+id+'.webp" alt="'+esc((window.pictureLabels && window.pictureLabels[id]) || '問題の写真')+'">';}
+function img(id){return '<img src="'+assetDir+'pictures/'+id+'.webp" alt="'+esc((window.pictureLabels && window.pictureLabels[id]) || '問題の写真')+'">';}
 function launch(mode){return '#practice/'+mode;}
 function startText(mode){return mode==='all' ? '全40問を解く' : '問題を解く';}
 function moduleCard(mode,name,eng,mins,style,ico,details){return '<a class="module '+style+'" href="'+launch(mode)+'"><div class="module-top"><span class="module-icon">'+icon(ico)+'</span><span class="module-en">'+eng+'</span></div><h3>'+name+'</h3><p>'+details+'</p><div class="module-bottom"><span>20問 <b>·</b> '+mins+'分</span><span class="module-link">'+startText(mode)+'</span></div></a>';}
+function paperSelector(view){
+ const links=paperCodes.map(code=>{
+  const current=code===paperId;
+  return `<a href="?paper=${code}#${view}"${current?' aria-current="page"':''}>${code}</a>`;
+ }).join('');
+ return `<nav class="paper-selector" aria-label="問題冊子を選ぶ"><strong>問題冊子を選ぶ</strong><div>${links}</div></nav>`;
+}
 function home(){
- main.innerHTML='<div class="crumb">問題演習 <em>/</em> HSK 1級</div><article class="hero"><div class="hero-art" role="presentation"></div><div class="hero-copy"><div class="hero-meta"><span class="level"><i></i> HSK 1</span><span class="mono">H11004</span></div><h1>HSK 1級<br>過去問演習</h1><div class="facts"><span>'+icon('paper')+'全40問</span><span>'+icon('clock')+'試験時間 約40分</span></div><a class="solid" href="'+launch('all')+'">'+icon('play')+startText('all')+'</a></div></article><section class="modules"><div class="section-heading"><div><h2>分野別に練習する</h2><p>各20問。苦手な分野から取り組めます。</p></div></div><div class="module-grid">'+moduleCard('listen','リスニング','第1〜20問','約15','mint','headphones','単語・文・会話を聞き、写真や答えを選びます。')+moduleCard('read','読解','第21〜40問','17','gold','book','ピンインを手がかりに、短い文や会話を読みます。')+'</div></section><details class="guide"><summary>初めての方へ：演習の進め方</summary><ol><li>通し演習または分野を選び、学習モードと出題順を設定します。どちらのモードも時間制限はありません。</li><li>リスニングでは再生ボタンを押します。各問の音声には同じ内容が2回収録されており、何度でも聞き直せます。</li><li>練習モードでは、間違えると正解が表示されます。正しい選択肢を自分で選ぶと次に進めます。成績は初回の解答で集計します。</li><li>試験モードでは、提出前に解答を見直せます。終了後はどちらのモードでも日本語訳と解説を読めます。学習履歴は同じ端末のブラウザーに保存されます。</li></ol></details><div class="paper-link">'+icon('paper')+'<div><strong>中国語の問題冊子（原本）</strong><small>H11004 · PDF · 全10ページ</small></div><a href="student.pdf" target="_blank" rel="noopener">PDFを開く</a></div>';
+ main.innerHTML='<div class="crumb">問題演習 <em>/</em> HSK 1級</div>'+paperSelector('home')+'<article class="hero"><div class="hero-art" role="presentation"></div><div class="hero-copy"><div class="hero-meta"><span class="level"><i></i> HSK 1</span><span class="mono">'+paperId+'</span></div><h1>HSK 1級<br>過去問演習</h1><div class="facts"><span>'+icon('paper')+'全40問</span><span>'+icon('clock')+'試験時間 約40分</span></div><a class="solid" href="'+launch('all')+'">'+icon('play')+startText('all')+'</a></div></article><section class="modules"><div class="section-heading"><div><h2>分野別に練習する</h2><p>各20問。苦手な分野から取り組めます。</p></div></div><div class="module-grid">'+moduleCard('listen','リスニング','第1〜20問','約15','mint','headphones','単語・文・会話を聞き、写真や答えを選びます。')+moduleCard('read','読解','第21〜40問','17','gold','book','ピンインを手がかりに、短い文や会話を読みます。')+'</div></section><details class="guide"><summary>初めての方へ：演習の進め方</summary><ol><li>通し演習または分野を選び、学習モードと出題順を設定します。どちらのモードも時間制限はありません。</li><li>リスニングでは再生ボタンを押します。各問の音声には同じ内容が2回収録されており、何度でも聞き直せます。</li><li>練習モードでは、間違えると正解が表示されます。正しい選択肢を自分で選ぶと次に進めます。成績は初回の解答で集計します。</li><li>試験モードでは、提出前に解答を見直せます。終了後はどちらのモードでも日本語訳と解説を読めます。学習履歴は同じ端末のブラウザーに保存されます。</li></ol></details><div class="paper-link">'+icon('paper')+'<div><strong>中国語の問題冊子（原本）</strong><small>'+paperId+' · PDF · 全10ページ</small></div><a href="'+assetDir+'student.pdf" target="_blank" rel="noopener">PDFを開く</a></div>';
 }
 function options(n){
  const list=choices(n);let text;
@@ -145,7 +152,7 @@ function quiz(d,reviewing=false){
  const picture=n<=5||n>=21&&n<=25;
  const reading=readings[n-21];
  const prompt=reading?`<div class="prompt" lang="zh-CN"><small lang="zh-Latn">${reading[1]}</small><strong>${reading[0]}</strong></div>`:'';
- const audio=n<=20?`<div class="player"><span>${icon('headphones')}問題の音声</span><audio aria-label="原題第${n}問の音声" controls preload="metadata" src="audio/q${n}.mp3"></audio><a class="audio-file" href="audio/q${n}.mp3" target="_blank" rel="noopener">再生できない場合は音声ファイルを開く</a></div>`:'';
+ const audio=n<=20?`<div class="player"><span>${icon('headphones')}問題の音声</span><audio aria-label="原題第${n}問の音声" controls preload="metadata" src="${assetDir}audio/q${n}.mp3"></audio><a class="audio-file" href="${assetDir}audio/q${n}.mp3" target="_blank" rel="noopener">再生できない場合は音声ファイルを開く</a></div>`:'';
  function unlocked(){
   if(!guided)return seq.length;
   const first=seq.findIndex(i=>d.answers[i]!==key[i-1]);
@@ -163,7 +170,7 @@ function quiz(d,reviewing=false){
  const last=pos===seq.length-1;
  const forward=last?(reviewing?`<a class="solid" href="${exitLink}">結果を見る</a>`:submitButton):`<button class="solid" data-go="${seq[pos+1]}">次の問題</button>`;
  main.innerHTML=`<div class="crumb"><a href="#home">問題演習</a><em>/</em>${modes[scope]}<em>/</em>${label}</div>
- <div class="quiz-head"><div><small class="micro">H11004 · ${orderLabels[d.order||'original']}</small><h1>${label}</h1></div>
+ <div class="quiz-head"><div><small class="micro">${paperId} · ${orderLabels[d.order||'original']}</small><h1>${label}</h1></div>
  <a class="textlink" href="${exitLink}">${reviewing?'結果に戻る':(storageOK?'保存して設定に戻る':'設定に戻る')}</a></div>
  <div class="quiz-grid"><article class="card question"><div class="qhead"><span>${n<=20?'リスニング':'読解'}・パート${s%4+1}（原題 第${n}問）</span><b>${pos+1} / ${seq.length}</b></div>
  <h2>${group[0]}</h2><p class="instruction">${group[1]}</p>${audio}${prompt}${picture?`<div class="single-photo">${img('q'+n)}</div>`:''}
@@ -247,13 +254,13 @@ function attemptLabel(r){
  return r.kind ? sessionLabels[r.kind]+'・'+orderLabels[r.order] : '従来の演習・原題順';
 }
 function renderHistory(){
- const list=state.history.map(r=>'<a class="history-row" href="#result/'+r.id+'"><span><b>'+modes[r.mode]+'</b><small>'+attemptLabel(r)+' · '+new Date(r.date).toLocaleString('ja-JP',{hour12:false})+' · H11004</small></span><strong>'+stats(r)+' / '+ids(r.mode).length+'</strong></a>').join('');
- main.innerHTML='<div class="crumb"><a href="#home">問題演習</a><em>/</em>学習履歴</div><div class="quiz-head"><h1>学習履歴</h1></div><section class="card history">'+(list||'<div class="empty">'+icon('history')+'<h2>学習履歴はまだありません</h2><p>演習を提出すると、ここから結果と各問の日本語解説を確認できます。</p><a class="solid" href="#home">問題を選ぶ</a></div>')+'</section>';
+ const list=state.history.map(r=>'<a class="history-row" href="#result/'+r.id+'"><span><b>'+modes[r.mode]+'</b><small>'+attemptLabel(r)+' · '+new Date(r.date).toLocaleString('ja-JP',{hour12:false})+' · '+paperId+'</small></span><strong>'+stats(r)+' / '+ids(r.mode).length+'</strong></a>').join('');
+ main.innerHTML='<div class="crumb"><a href="#home">問題演習</a><em>/</em>学習履歴</div><div class="quiz-head"><h1>学習履歴</h1></div>'+paperSelector('history')+'<section class="card history">'+(list||'<div class="empty">'+icon('history')+'<h2>学習履歴はまだありません</h2><p>演習を提出すると、ここから結果と各問の日本語解説を確認できます。</p><a class="solid" href="#home">問題を選ぶ</a></div>')+'</section>';
 }
 function result(r){
  const seq=r.sequence||ids(r.mode),score=stats(r),blanks=seq.filter(n=>!r.answers[n]).length,miss=seq.find(n=>r.answers[n]!==key[n-1]);
  const rows=sections.map((g,i)=>{const group=seq.filter(n=>section(n)===i);return group.length?'<div class="result-row"><span>'+g[0]+'</span><b>'+group.filter(n=>r.answers[n]===key[n-1]).length+' / '+group.length+'</b></div>':'';}).join('');
- main.innerHTML='<div class="crumb"><a href="#history">学習履歴</a><em>/</em>今回の結果</div><div class="quiz-head"><div><small class="micro">H11004 · '+modes[r.mode]+' · '+attemptLabel(r)+'</small><h1>演習結果</h1></div></div><div class="quiz-grid"><section class="card result"><span class="micro">'+(r.kind==='practice'?'初回で正解した問題':'正解数')+'</span><div class="score">'+score+' <small>/ '+seq.length+'</small></div><p>'+(r.kind==='practice'?'全問クリア。選び直して正解した問題は'+(seq.length-score)+'問です。':'正解 '+score+'問　不正解 '+(seq.length-score-blanks)+'問　未解答 '+blanks+'問')+'</p><div class="actions"><a class="solid" href="#review/'+r.id+'/'+(miss||seq[0])+'">'+(miss?'間違えた問題・未解答から復習':'解答・解説を見る')+'</a><a class="ghost" href="'+launch(r.mode)+'">もう一度解く</a></div></section><section class="card sheet"><h2>問題形式別の成績</h2>'+rows+'</section></div>'+resultExplanations(r,seq,miss||seq[0]);
+ main.innerHTML='<div class="crumb"><a href="#history">学習履歴</a><em>/</em>今回の結果</div><div class="quiz-head"><div><small class="micro">'+paperId+' · '+modes[r.mode]+' · '+attemptLabel(r)+'</small><h1>演習結果</h1></div></div><div class="quiz-grid"><section class="card result"><span class="micro">'+(r.kind==='practice'?'初回で正解した問題':'正解数')+'</span><div class="score">'+score+' <small>/ '+seq.length+'</small></div><p>'+(r.kind==='practice'?'全問クリア。選び直して正解した問題は'+(seq.length-score)+'問です。':'正解 '+score+'問　不正解 '+(seq.length-score-blanks)+'問　未解答 '+blanks+'問')+'</p><div class="actions"><a class="solid" href="#review/'+r.id+'/'+(miss||seq[0])+'">'+(miss?'間違えた問題・未解答から復習':'解答・解説を見る')+'</a><a class="ghost" href="'+launch(r.mode)+'">もう一度解く</a></div></section><section class="card sheet"><h2>問題形式別の成績</h2>'+rows+'</section></div>'+resultExplanations(r,seq,miss||seq[0]);
 }
 function route(){
  const [view='home',param,kind,order]=location.hash.slice(1).split('/');

@@ -55,3 +55,10 @@ dialog:not([open]){display:none}
 .question-detail summary:focus-visible{outline:2px solid var(--grass);outline-offset:2px}
 .detail-body{max-width:52rem;padding:0 0 18px}
 .detail-body .textlink{display:inline-block;margin-top:12px}
+.paper-selector{display:flex;flex-wrap:wrap;align-items:center;gap:10px 19px;margin:0 0 18px}
+.paper-selector strong{font-size:.96rem}
+.paper-selector div{display:flex;flex-wrap:wrap;gap:7px}
+.paper-selector a{display:inline-block;border:1px solid var(--line);border-radius:8px;background:white;padding:.45rem .85rem;font:600 .9rem/1.5 var(--mono)}
+.paper-selector a:hover{border-color:var(--grass)}
+.paper-selector [aria-current="page"]{color:white;background:var(--grass);border-color:var(--grass)}
+.load-error{margin-top:24px}
