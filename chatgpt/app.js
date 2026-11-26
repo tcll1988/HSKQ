@@ -1,7 +1,10 @@
 const main = document.querySelector('main');
 const dialog = document.querySelector('dialog');
-const modes = {all:'全40問の通し演習',listen:'リスニング',read:'読解'};
-const ranges = {all:[1,40],listen:[1,20],read:[21,40]};
+const layout=layouts[level], total=layout.count.reduce((a,b)=>a+b,0);
+const sections=advanced?layout.parts.map(p=>[p[1],'冊子の該当する問題を読み、解答してください。']):firstLevelSections;
+const modes={all:'全'+total+'問の通し演習',listen:'リスニング',read:'読解'};
+const ranges={all:[1,total],listen:[1,layout.count[0]],read:[layout.count[0]+1,layout.count[0]+layout.count[1]]};
+if(layout.count[2]){modes.write='記述';ranges.write=[ranges.read[1]+1,total];}
 const storeKey = 'hsk-room-'+paperId+'-v1';
 let state;
 try { state = JSON.parse(localStorage.getItem(storeKey)) || {}; } catch { state = {}; }
@@ -10,7 +13,7 @@ state.history = state.history || [];
 let storageOK=true;
 const save=()=>{try{localStorage.setItem(storeKey,JSON.stringify(state));}catch{storageOK=false;}};
 const ids = mode=>Array.from({length:ranges[mode][1]-ranges[mode][0]+1},(_,i)=>ranges[mode][0]+i);
-const choices = n => n<=5 || (n>=21 && n<=25) ? ['√','×'] : [...(n<=10 || (n>=16 && n<=20) ? 'ABC':'ABCDEF')];
+const levelOneChoices = n => n<=5 || (n>=21 && n<=25) ? ['√','×'] : [...(n<=10 || (n>=16 && n<=20) ? 'ABC':'ABCDEF')];
 const iconPaths = {
  headphones:'<path d="M4 14v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="12" width="4" height="8" rx="2"/><rect x="17" y="12" width="4" height="8" rx="2"/>',
  book:'<path d="M12 6c-3-2-6-2-10-1v14c4-1 7-1 10 1 3-2 6-2 10-1V5c-4-1-7-1-10 1v14"/>',
@@ -23,7 +26,7 @@ const iconPaths = {
  history:'<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6M12 7v5l3 2"/>'
 };
 function icon(name){return '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+iconPaths[name]+'</svg>';}
-function section(n){return Math.floor((n-1)/5);}
+function section(n){return advanced?layout.parts.findIndex(p=>n<=p[0]):Math.floor((n-1)/5);}
 
 const sessionLabels = {practice:'練習モード', exam:'試験モード'};
 const orderLabels = {original:'原題順', random:'ランダム順'};
@@ -94,24 +97,31 @@ function setup(scope){
  update();
 }
 
-function stats(r){return ids(r.mode).filter(n=>r.answers[n]===key[n-1]).length;}
+function stats(r){return ids(r.mode).filter(n=>matchesKey(n,r.answers[n])).length;}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function img(id){return '<img src="'+assetDir+'pictures/'+id+'.webp" alt="'+esc((window.pictureLabels && window.pictureLabels[id]) || '問題の写真')+'">';}
 function launch(mode){return '#practice/'+mode;}
-function startText(mode){return mode==='all' ? '全40問を解く' : '問題を解く';}
-function moduleCard(mode,name,eng,mins,style,ico,details){return '<a class="module '+style+'" href="'+launch(mode)+'"><div class="module-top"><span class="module-icon">'+icon(ico)+'</span><span class="module-en">'+eng+'</span></div><h3>'+name+'</h3><p>'+details+'</p><div class="module-bottom"><span>20問 <b>·</b> '+mins+'分</span><span class="module-link">'+startText(mode)+'</span></div></a>';}
+function startText(mode){return mode==='all' ? '全'+total+'問を解く' : '問題を解く';}
+function moduleCard(mode,name,eng,mins,style,ico,details){return '<a class="module '+style+'" href="'+launch(mode)+'"><div class="module-top"><span class="module-icon">'+icon(ico)+'</span><span class="module-en">'+eng+'</span></div><h3>'+name+'</h3><p>'+details+'</p><div class="module-bottom"><span>'+ids(mode).length+'問 <b>·</b> '+mins+'分</span><span class="module-link">'+startText(mode)+'</span></div></a>';}
 function paperSelector(view){
- const links=paperCodes.map(code=>{
-  const current=code===paperId;
-  return `<a href="?paper=${code}#${view}"${current?' aria-current="page"':''}>${code}</a>`;
+ const groups=[1,2,3,4,5,6].map(l=>{
+  const codes=paperCodes.filter(code=>Number(code[1])===l);
+  if(!codes.length)return '';
+  const links=codes.map(code=>`<a href="?paper=${code}#${view}" ${code===paperId?'aria-current="page"':''}>${code}</a>`).join('');
+  return `<details ${level===l?'open':''}><summary>HSK ${l}級（${codes.length}冊）</summary><div>${links}</div></details>`;
  }).join('');
- return `<nav class="paper-selector" aria-label="問題冊子を選ぶ"><strong>問題冊子を選ぶ</strong><div>${links}</div></nav>`;
+ return `<nav class="paper-selector multi" aria-label="問題冊子を選ぶ"><details class="paper-menu"><summary>問題冊子を選ぶ <span>HSK ${level}級 · ${paperId}</span></summary>${groups}</details></nav>`;
 }
-function home(){
- main.innerHTML='<div class="crumb">問題演習 <em>/</em> HSK 1級</div>'+paperSelector('home')+'<article class="hero"><div class="hero-art" role="presentation"></div><div class="hero-copy"><div class="hero-meta"><span class="level"><i></i> HSK 1</span><span class="mono">'+paperId+'</span></div><h1>HSK 1級<br>過去問演習</h1><div class="facts"><span>'+icon('paper')+'全40問</span><span>'+icon('clock')+'試験時間 約40分</span></div><a class="solid" href="'+launch('all')+'">'+icon('play')+startText('all')+'</a></div></article><section class="modules"><div class="section-heading"><div><h2>分野別に練習する</h2><p>各20問。苦手な分野から取り組めます。</p></div></div><div class="module-grid">'+moduleCard('listen','リスニング','第1〜20問','約15','mint','headphones','単語・文・会話を聞き、写真や答えを選びます。')+moduleCard('read','読解','第21〜40問','17','gold','book','ピンインを手がかりに、短い文や会話を読みます。')+'</div></section><details class="guide"><summary>初めての方へ：演習の進め方</summary><ol><li>通し演習または分野を選び、学習モードと出題順を設定します。どちらのモードも時間制限はありません。</li><li>リスニングでは再生ボタンを押します。各問の音声には同じ内容が2回収録されており、何度でも聞き直せます。</li><li>練習モードでは、間違えると正解が表示されます。正しい選択肢を自分で選ぶと次に進めます。成績は初回の解答で集計します。</li><li>試験モードでは、提出前に解答を見直せます。終了後はどちらのモードでも日本語訳と解説を読めます。学習履歴は同じ端末のブラウザーに保存されます。</li></ol></details><div class="paper-link">'+icon('paper')+'<div><strong>中国語の問題冊子（原本）</strong><small>'+paperId+' · PDF · 全10ページ</small></div><a href="'+assetDir+'student.pdf" target="_blank" rel="noopener">PDFを開く</a></div>';
-}
+function home(){main.innerHTML=homeHeading();}
 function options(n){
- const list=choices(n);let text;
+ if(advanced){
+  if(isWritten(n))return [];
+  let type=partType(n);
+  if((level===2&&(n>=16&&n<=20||n>=56&&n<=60))||(level===3&&(n>=6&&n<=10||n>=46&&n<=50)))type='ABCDE';
+  const values=type==='order'?['ABC','ACB','BAC','BCA','CAB','CBA']:[...type];
+  return values.map(v=>({v,photo:'',body:v==='√'?'一致する':v==='×'?'一致しない':''}));
+ }
+ const list=levelOneChoices(n);let text;
  if(n>=16&&n<=20)text=listeningOptions[n-16];
  if(n>=31)text=n<=35?replies:words;
  return list.map((v,i)=>{
@@ -126,17 +136,17 @@ function options(n){
 
 function explanationFor(n){
  const [translation,reason,detail]=studyNotes[n-1];
- const source=n<=20?transcript[n-1]:readings[n-21][0];
- return `<div class="answer-reason"><strong>正解の理由</strong><p>${esc(reason)}</p><p>${esc(detail)}</p></div>
- <div class="source-note"><h4>${n<=20?'音声の原文':'問題文'}</h4><p lang="zh-CN">${esc(source)}</p><h4>日本語訳</h4><p>${esc(translation)}</p></div>`;
+ const source=advanced?(book.sources[n]||''):n<=20?transcript[n-1]:readings[n-21][0];
+ return `<div class="answer-reason"><strong>${isManual(n)?'解答例のポイント':'正解の理由'}</strong><p>${esc(reason)}</p><p>${esc(detail)}</p></div>
+ <div class="source-note">${source?`<h4>${scopeOf(n)==='listen'?'音声の原文':'問題文'}</h4><p lang="zh-CN">${esc(source)}</p>`:''}<h4>日本語での意味・要点</h4><p>${esc(translation)}</p></div>`;
 }
 function resultExplanations(record,seq,firstOpen){
  const items=seq.map((n,index)=>{
-  const answer=record.answers[n],correct=key[n-1],status=!answer?'未解答':answer===correct?'正解':'不正解';
+  const answer=record.answers[n],correct=key[n-1],status=isManual(n)?(answer?'記述・自己確認':'未解答'):!answer?'未解答':matchesKey(n,answer)?'正解':'不正解';
   return `<details class="question-detail" data-original="${n}" ${n===firstOpen?'open':''}><summary>${index+1}問目（原題 第${n}問）・${status}</summary>
-  <div class="detail-body"><p>${record.kind==='practice'?'初回の解答':'あなたの解答'}：${esc(answer||'未解答')}　正解：${correct}</p>
+  <div class="detail-body"><p>${record.kind==='practice'&&!isManual(n)?'初回の解答':'あなたの解答'}：${esc(answer||'未解答')}　${isManual(n)?'解答例':'正解'}：${esc(correct||'解説を参照')}</p>
   ${explanationFor(n)}
-  <a class="textlink" href="#review/${record.id}/${n}">問題と選択肢を見直す</a></div></details>`;
+  <a class="textlink" href="#review/${record.id}/${n}">${isWritten(n)?'問題と記述を見直す':'問題と選択肢を見直す'}</a></div></details>`;
  });
  return `<section class="card all-explanations"><h2>全${seq.length}問の解説</h2>${items.join('')}</section>`;
 }
@@ -149,13 +159,15 @@ function quiz(d,reviewing=false){
  const n=reviewing?(seq.includes(target)?target:seq[0]):d.at;
  const pos=seq.indexOf(n), s=section(n), group=sections[s], opts=options(n), correct=key[n-1];
  const label=reviewing?'解答・解説':sessionLabels[d.kind];
- const picture=n<=5||n>=21&&n<=25;
- const reading=readings[n-21];
+ const picture=!advanced&&(n<=5||n>=21&&n<=25);
+ const reading=advanced?null:readings[n-21];
  const prompt=reading?`<div class="prompt" lang="zh-CN"><small lang="zh-Latn">${reading[1]}</small><strong>${reading[0]}</strong></div>`:'';
- const audio=n<=20?`<div class="player"><span>${icon('headphones')}問題の音声</span><audio aria-label="原題第${n}問の音声" controls preload="metadata" src="${assetDir}audio/q${n}.mp3"></audio><a class="audio-file" href="${assetDir}audio/q${n}.mp3" target="_blank" rel="noopener">再生できない場合は音声ファイルを開く</a></div>`:'';
+ const audio=scopeOf(n)==='listen'?audioPanel(n):'';
+ const writing=isWritten(n), manual=isManual(n);
+ const instruction=partType(n)==='sentence'?'冊子の語句をすべて使い、中国語の文を入力してください。空白や句読点は採点に影響しません。':manual?'冊子にある条件に沿って中国語で書いてください。解答後に解説や解答例と照らし合わせます。':group[1];
  function unlocked(){
   if(!guided)return seq.length;
-  const first=seq.findIndex(i=>d.answers[i]!==key[i-1]);
+  const first=seq.findIndex(i=>!isSolved(d,i));
   return first===-1?seq.length:first;
  }
  const submitText=guided?'練習を終了する':'採点する';
@@ -163,8 +175,8 @@ function quiz(d,reviewing=false){
  const buttons=opts.map(o=>`<button type="button" class="option ${o.photo?'pic-option':''}" data-pick="${o.v}" aria-pressed="false"><span class="letter">${o.v}</span>${o.body}</button>`).join('');
  const numbers=seq.map((id,j)=>`<button data-go="${id}" class="num ${pos===j?'current':''}">${j+1}</button>`).join('');
  const reason=explanationFor(n);
- const review=reviewing?`<aside class="explain"><h3>${!d.answers[n]?'未解答':d.answers[n]===correct?'正解です':'不正解です'}</h3>
-   <p>${d.kind==='practice'?'初回の解答':'あなたの解答'}：${d.answers[n]||'未解答'}　正解：${correct}</p>
+ const review=reviewing?`<aside class="explain"><h3>${manual?'記述の振り返り':!d.answers[n]?'未解答':matchesKey(n,d.answers[n])?'正解です':'不正解です'}</h3>
+   <p>${d.kind==='practice'&&!manual?'初回の解答':'あなたの解答'}：${esc(d.answers[n]||'未解答')}　${isManual(n)?'解答例':'正解'}：${esc(correct||'解説を参照')}</p>
    ${reason}</aside>`:'';
  const exitLink=reviewing?'#result/'+d.id:launch(scope);
  const last=pos===seq.length-1;
@@ -172,17 +184,18 @@ function quiz(d,reviewing=false){
  main.innerHTML=`<div class="crumb"><a href="#home">問題演習</a><em>/</em>${modes[scope]}<em>/</em>${label}</div>
  <div class="quiz-head"><div><small class="micro">${paperId} · ${orderLabels[d.order||'original']}</small><h1>${label}</h1></div>
  <a class="textlink" href="${exitLink}">${reviewing?'結果に戻る':(storageOK?'保存して設定に戻る':'設定に戻る')}</a></div>
- <div class="quiz-grid"><article class="card question"><div class="qhead"><span>${n<=20?'リスニング':'読解'}・パート${s%4+1}（原題 第${n}問）</span><b>${pos+1} / ${seq.length}</b></div>
- <h2>${group[0]}</h2><p class="instruction">${group[1]}</p>${audio}${prompt}${picture?`<div class="single-photo">${img('q'+n)}</div>`:''}
- <div class="options ${opts[0].photo?'photos':''}">${buttons}</div>
+ <div class="quiz-grid"><article class="card question"><div class="qhead"><span>${modes[scopeOf(n)]}（原題 第${n}問）</span><b>${pos+1} / ${seq.length}</b></div>
+ <h2>${group[0]}</h2><p class="instruction">${instruction}</p>${audio}${advanced?originalPanel(n):prompt}${picture?`<div class="single-photo">${img('q'+n)}</div>`:''}
+ ${writing?writingPanel(d,n,reviewing):`<div class="options ${opts[0].photo?'photos':''}">${buttons}</div>`}
  ${guided?'<div class="practice-feedback" role="status" aria-live="polite" aria-atomic="true"></div>':''}${review}
  <div class="step"><button class="ghost" data-go="${pos?seq[pos-1]:0}">前の問題</button>${forward}</div></article>
  <aside class="card sheet"><h2>${icon('layers')}問題一覧</h2><p class="sheet-count"></p><progress aria-label="問題の進捗" max="${seq.length}"></progress><div class="numbers">${numbers}</div>
  ${reviewing?'<p>番号は出題順です。緑は正解、オレンジは不正解・未解答です。</p>':(guided?'<p>正解すると次の問題に進めます。</p>':'<button class="ghost wide" data-submit>採点する</button>')+'<small class="save-note"></small>'}</aside></div>`;
+ if(advanced)wireOriginal(n);
  function refresh(){
-  const selected=d.answers[n], limit=unlocked(), solved=selected===correct;
-  const count=reviewing?stats(d):guided?limit:seq.filter(i=>d.answers[i]).length;
-  main.querySelector('.sheet-count').textContent=`${reviewing?'正解':guided?'クリア':'解答済み'} ${count} / ${seq.length}問`;
+  const selected=d.answers[n], limit=unlocked(), solved=isSolved(d,n);
+  const count=reviewing?seq.filter(i=>d.answers[i]).length:guided?limit:seq.filter(i=>d.answers[i]).length;
+  main.querySelector('.sheet-count').textContent=`${reviewing?'解答済み':guided?'クリア':'解答済み'} ${count} / ${seq.length}問`;
   main.querySelector('progress').value=count;
   main.querySelectorAll('[data-pick]').forEach(b=>{
    const val=b.dataset.pick, reveal=reviewing||guided&&!!selected;
@@ -196,30 +209,56 @@ function quiz(d,reviewing=false){
    const dest=Number(b.dataset.go),index=seq.indexOf(dest);
    b.disabled=index<0||index>limit;
    if(!b.classList.contains('num'))return;
-   const hit=d.answers[dest]===key[dest-1];
+   const hit=reviewing&&isManual(dest)?false:isSolved(d,dest);
    b.classList.toggle('done',!reviewing&&(guided?hit:!!d.answers[dest]));
-   b.classList.toggle('good',reviewing&&hit);b.classList.toggle('bad',reviewing&&!hit);
-   b.setAttribute('aria-label',`${index+1}問目、原題第${dest}問、${b.disabled?'未開放':reviewing?(hit?'正解':d.answers[dest]?'不正解':'未解答'):guided&&hit?'クリア':d.answers[dest]?'解答済み':'未解答'}`);
+   b.classList.toggle('good',reviewing&&hit);b.classList.toggle('bad',reviewing&&!hit&&(!isManual(dest)||!d.answers[dest]));
+   b.setAttribute('aria-label',`${index+1}問目、原題第${dest}問、${b.disabled?'未開放':reviewing?(isManual(dest)&&d.answers[dest]?'記述・自己確認':hit?'正解':d.answers[dest]?'不正解':'未解答'):guided&&hit?'クリア':d.answers[dest]?'解答済み':'未解答'}`);
   });
   main.querySelectorAll('[data-submit]').forEach(b=>{b.disabled=guided&&limit<seq.length;});
   if(!reviewing)main.querySelector('.save-note').textContent=storageOK?'進捗はこのブラウザーに自動保存されます。':'このページを閉じると進捗は消去されます。';
   if(guided){
    const fb=main.querySelector('.practice-feedback');
-   fb.className='practice-feedback'+(selected?(solved?' is-right':' is-wrong'):'');
+   fb.className='practice-feedback'+(selected?(solved?' is-right':manual?' is-neutral':' is-wrong'):'');
+   if(writing){
+    const field=main.querySelector('#written'),check=main.querySelector('#check-written');
+    field.readOnly=solved;check.disabled=solved||!field.value.trim();
+    if(!selected){fb.textContent='';return;}
+    if(manual){
+     fb.innerHTML=`<strong>解答を照らし合わせましょう</strong><p>あなたの解答：${esc(selected)}</p>${correct?`<p>解答例：${esc(correct)}</p>`:''}${reason}`+
+      (solved?'確認しました。':'<button class="ghost" type="button" id="mark-written">条件を満たした（自己確認）</button><p>直したいときは記述欄を編集してください。</p>');
+     const mark=main.querySelector('#mark-written');
+     if(mark)mark.onclick=()=>{d.checked=d.checked||{};d.checked[n]=true;save();refresh();};
+     return;
+    }
+   }
    if(!selected){fb.textContent='';return;}
    if(solved){
     const next=last?'練習を終了して結果を確認しましょう。':'次の問題に進めます。';
     fb.innerHTML=`<strong>正解です。</strong>${reason}<p class="feedback-next">${next}</p>`;
    }else{
-    const option=opts.find(o=>o.v===correct);
-    fb.innerHTML=`<strong>正解は ${correct} です。</strong>
-     <div class="feedback-answer"><span class="letter">${correct}</span>${option.body}</div>
-     ${reason}<p class="feedback-next">正しい選択肢を選び直してください。</p>`;
+    const option=opts.find(o=>o.v===correct)||{body:''};
+    fb.innerHTML=`<strong>正解は ${esc(correct)} です。</strong>
+     <div class="feedback-answer">${writing?'':'<span class="letter">'+esc(correct)+'</span>'+option.body}</div>
+     ${reason}<p class="feedback-next">${writing?'記述欄に正しい解答を入力し、もう一度確認してください。':'正しい選択肢を選び直してください。'}</p>`;
    }
   }
  }
+ if(writing&&!reviewing){
+  const field=main.querySelector('#written');
+  const submit=()=>{
+   const v=field.value.trim();
+   if(guided&&!v)return;
+   d.answers[n]=v;if(guided&&!d.first[n])d.first[n]=v;
+   save();refresh();
+  };
+  field.oninput=()=>{
+   d.written=d.written||{};d.written[n]=field.value;
+   if(guided){delete d.answers[n];save();refresh();}else submit();
+  };
+  if(guided)main.querySelector('#check-written').onclick=submit;
+ }
  main.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{
-  if(reviewing||guided&&d.answers[n]===correct)return;
+  if(reviewing||guided&&isSolved(d,n))return;
   if(guided&&!d.first[n])d.first[n]=b.dataset.pick;
   d.answers[n]=b.dataset.pick;save();refresh();
  });
@@ -234,7 +273,8 @@ function quiz(d,reviewing=false){
   function finish(){
    const id=draftId(scope,d.kind,d.order);
    if(state.drafts[id]!==d)return;
-   const record={id:Date.now().toString(),date:Date.now(),mode:scope,kind:d.kind,order:d.order,sequence:seq.slice(),answers:{...(guided?d.first:d.answers)}};
+   const record={id:Date.now().toString(),date:Date.now(),mode:scope,kind:d.kind,order:d.order,sequence:seq.slice(),checked:{...d.checked},written:{...d.written},answers:{...(guided?d.first:d.answers)}};
+   for(const i of seq){if(isManual(i)&&d.answers[i])record.answers[i]=d.answers[i];}
    state.history.unshift(record);delete state.drafts[id];save();location.hash='result/'+record.id;
   }
   if(guided){finish();return;}
@@ -253,14 +293,30 @@ function ask(title,msg,action){
 function attemptLabel(r){
  return r.kind ? sessionLabels[r.kind]+'・'+orderLabels[r.order] : '従来の演習・原題順';
 }
+function scoreLabel(r){
+ const graded=ids(r.mode).filter(n=>!isManual(n));
+ return graded.length?stats(r)+' / '+graded.length:'記述 '+ids(r.mode).filter(n=>r.answers[n]).length+'問';
+}
 function renderHistory(){
- const list=state.history.map(r=>'<a class="history-row" href="#result/'+r.id+'"><span><b>'+modes[r.mode]+'</b><small>'+attemptLabel(r)+' · '+new Date(r.date).toLocaleString('ja-JP',{hour12:false})+' · '+paperId+'</small></span><strong>'+stats(r)+' / '+ids(r.mode).length+'</strong></a>').join('');
+ const list=state.history.map(r=>'<a class="history-row" href="#result/'+r.id+'"><span><b>'+modes[r.mode]+'</b><small>'+attemptLabel(r)+' · '+new Date(r.date).toLocaleString('ja-JP',{hour12:false})+' · '+paperId+'</small></span><strong>'+scoreLabel(r)+'</strong></a>').join('');
  main.innerHTML='<div class="crumb"><a href="#home">問題演習</a><em>/</em>学習履歴</div><div class="quiz-head"><h1>学習履歴</h1></div>'+paperSelector('history')+'<section class="card history">'+(list||'<div class="empty">'+icon('history')+'<h2>学習履歴はまだありません</h2><p>演習を提出すると、ここから結果と各問の日本語解説を確認できます。</p><a class="solid" href="#home">問題を選ぶ</a></div>')+'</section>';
 }
 function result(r){
- const seq=r.sequence||ids(r.mode),score=stats(r),blanks=seq.filter(n=>!r.answers[n]).length,miss=seq.find(n=>r.answers[n]!==key[n-1]);
- const rows=sections.map((g,i)=>{const group=seq.filter(n=>section(n)===i);return group.length?'<div class="result-row"><span>'+g[0]+'</span><b>'+group.filter(n=>r.answers[n]===key[n-1]).length+' / '+group.length+'</b></div>':'';}).join('');
- main.innerHTML='<div class="crumb"><a href="#history">学習履歴</a><em>/</em>今回の結果</div><div class="quiz-head"><div><small class="micro">'+paperId+' · '+modes[r.mode]+' · '+attemptLabel(r)+'</small><h1>演習結果</h1></div></div><div class="quiz-grid"><section class="card result"><span class="micro">'+(r.kind==='practice'?'初回で正解した問題':'正解数')+'</span><div class="score">'+score+' <small>/ '+seq.length+'</small></div><p>'+(r.kind==='practice'?'全問クリア。選び直して正解した問題は'+(seq.length-score)+'問です。':'正解 '+score+'問　不正解 '+(seq.length-score-blanks)+'問　未解答 '+blanks+'問')+'</p><div class="actions"><a class="solid" href="#review/'+r.id+'/'+(miss||seq[0])+'">'+(miss?'間違えた問題・未解答から復習':'解答・解説を見る')+'</a><a class="ghost" href="'+launch(r.mode)+'">もう一度解く</a></div></section><section class="card sheet"><h2>問題形式別の成績</h2>'+rows+'</section></div>'+resultExplanations(r,seq,miss||seq[0]);
+ const seq=r.sequence||ids(r.mode), graded=seq.filter(n=>!isManual(n)), written=seq.filter(isManual);
+ const score=stats(r), incorrect=graded.filter(n=>r.answers[n]&&!matchesKey(n,r.answers[n])).length;
+ const answered=written.filter(n=>r.answers[n]).length, blanks=graded.filter(n=>!r.answers[n]).length;
+ const miss=graded.find(n=>!matchesKey(n,r.answers[n]));
+ const scoreTitle=graded.length?(r.kind==='practice'?'初回で正解した問題':'正解数'):'記述の解答数';
+ const summary=[];
+ if(graded.length)summary.push(r.kind==='practice'?`選び直し・書き直し ${graded.length-score}問`:`不正解 ${incorrect}問　未解答 ${blanks}問`);
+ if(written.length)summary.push(`記述 ${answered} / ${written.length}問解答。解説と照らし合わせて自己確認しましょう。`);
+ const rows=sections.map((group,i)=>{
+  const items=seq.filter(n=>section(n)===i);
+  if(!items.length)return '';
+  const outcome=isManual(items[0])?'自己確認':items.filter(n=>matchesKey(n,r.answers[n])).length+' / '+items.length;
+  return `<div class="result-row"><span>${group[0]}</span><b>${outcome}</b></div>`;
+ }).join('');
+ main.innerHTML=`<div class="crumb"><a href="#history">学習履歴</a><em>/</em>今回の結果</div><div class="quiz-head"><div><small class="micro">${paperId} · ${modes[r.mode]} · ${attemptLabel(r)}</small><h1>演習結果</h1></div></div><div class="quiz-grid"><section class="card result"><span class="micro">${scoreTitle}</span><div class="score">${graded.length?score:answered} <small>/ ${graded.length||written.length}</small></div><p>${summary.join('　')}</p><div class="actions"><a class="solid" href="#review/${r.id}/${miss||seq[0]}">${miss?'間違えた問題・未解答から復習':'解答・解説を見る'}</a><a class="ghost" href="${launch(r.mode)}">もう一度解く</a></div></section><section class="card sheet"><h2>問題形式別の成績</h2>${rows}</section></div>${resultExplanations(r,seq,miss||seq[0])}`;
 }
 function route(){
  const [view='home',param,kind,order]=location.hash.slice(1).split('/');

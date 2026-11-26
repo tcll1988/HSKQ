@@ -62,3 +62,26 @@ dialog:not([open]){display:none}
 .paper-selector a:hover{border-color:var(--grass)}
 .paper-selector [aria-current="page"]{color:white;background:var(--grass);border-color:var(--grass)}
 .load-error{margin-top:24px}
+.paper-selector.multi{align-items:start;display:block}.multi>strong{display:block;margin-bottom:6px}
+.paper-selector details{display:block;padding:6px 12px;border:1px solid var(--line);background:white;border-radius:9px;margin:4px 0}
+.paper-selector summary{cursor:pointer;font-weight:600}.paper-selector details[open]>div{margin:8px 0 4px}
+.original{margin-top:16px}.original>p{font-size:.87rem;color:var(--muted);margin:5px 0}
+.original-tools{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.original select,.writing textarea{font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px}
+.page-images{max-height:65vh;overflow:auto;border:1px solid var(--line);border-radius:9px;background:white}
+.page-images img{display:block;width:100%;height:auto}.writing textarea{display:block;width:100%;margin:6px 0 10px}
+.replay{font:inherit;border:1px solid var(--line);border-radius:8px;background:white;margin:7px 5px 0;padding:5px 10px}
+
+.original-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.original-actions button{padding:5px 12px;border:1px solid var(--line);border-radius:7px;color:var(--grass);background:white}
+.original-actions button:disabled{opacity:.5}
+.printed-page{display:block;position:relative}
+.page-images.enlarged .printed-page{width:180%;min-width:750px}
+.printed-marker{position:absolute;transform:translate(-120%,22%);width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #bc541a;pointer-events:none}
+.page-images:focus-visible{outline:3px solid #bd7411;outline-offset:2px}
+
+.paper-selector .paper-menu{padding:.65rem .9rem;background:#fbfcfa}
+.paper-menu>summary span{font:500 .86rem/1.5 var(--mono);margin-left:8px;color:var(--muted)}
+.paper-menu>details{margin-top:8px}
+.detail-body>p,.practice-feedback p,.explain>p,.source-note p{white-space:pre-line}
+.practice-feedback.is-neutral{border-color:var(--line);background:#f8f9f6}
