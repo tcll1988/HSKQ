@@ -1,20 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  AUDIO_SRC,
-  PARTS,
-  QUESTIONS,
-  questionsIn,
-  type PartId,
-  type Question,
-  type Seg,
-} from "@/data/h11004";
+import { questionsIn, type Question, type Seg } from "@/data/h11004";
+import { PAPERS, paperById, partMeta, type Paper } from "@/data/catalog";
 
 type Mode = "practice" | "exam";
 type Order = "fixed" | "random";
-type Scope = "all" | "listen" | "read" | PartId;
+type Scope = string;
 type Phase = "home" | "run" | "result";
 
 type RunState = {
+  paperId: string;
   mode: Mode;
   order: Order;
   scope: Scope;
@@ -25,20 +19,6 @@ type RunState = {
   firstOk: Record<number, boolean>;
   started: number;
 };
-
-const SCOPES: { id: Scope; label: string }[] = [
-  { id: "all", label: "全部 40問" },
-  { id: "listen", label: "リスニング" },
-  { id: "read", label: "読解" },
-  { id: "L1", label: "聞き 1" },
-  { id: "L2", label: "聞き 2" },
-  { id: "L3", label: "聞き 3" },
-  { id: "L4", label: "聞き 4" },
-  { id: "R1", label: "読み 1" },
-  { id: "R2", label: "読み 2" },
-  { id: "R3", label: "読み 3" },
-  { id: "R4", label: "読み 4" },
-];
 
 function shuffle<T>(list: T[]): T[] {
   const a = [...list];
@@ -51,10 +31,26 @@ function shuffle<T>(list: T[]): T[] {
   return a;
 }
 
-function byId(id: number): Question {
-  const q = QUESTIONS.find((item) => item.id === id);
+function qBy(paperId: string, id: number): Question {
+  const q = paperById(paperId).questions.find((item) => item.id === id);
   if (!q) throw new Error("missing question");
   return q;
+}
+
+function scopesFor(paper: Paper): { id: string; label: string }[] {
+  const parts = [...new Set(paper.questions.map((q) => q.part))];
+  const has = (g: string) => paper.questions.some((q) => partMeta(q).group === g);
+  const items: { id: string; label: string }[] = [
+    { id: "all", label: `全部 ${paper.questions.length}問` },
+  ];
+  if (has("listen")) items.push({ id: "listen", label: "リスニング" });
+  if (has("read")) items.push({ id: "read", label: "読解" });
+  if (has("write")) items.push({ id: "write", label: "書写" });
+  for (const part of parts) {
+    const sample = paper.questions.find((q) => q.part === part);
+    items.push({ id: part, label: sample ? partMeta(sample).ja.replace("リスニング ", "聞 ").replace("読解 ", "読 ") : part });
+  }
+  return items;
 }
 
 function RubyLine({ parts, py }: { parts: Seg[]; py: boolean }) {
@@ -107,6 +103,7 @@ function clock(ms: number) {
 export function HskApp() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [phase, setPhase] = useState<Phase>("home");
+  const [paperId, setPaperId] = useState(PAPERS[0]!.id);
   const [mode, setMode] = useState<Mode>("practice");
   const [order, setOrder] = useState<Order>("fixed");
   const [scope, setScope] = useState<Scope>("all");
@@ -114,6 +111,7 @@ export function HskApp() {
   const [run, setRun] = useState<RunState | null>(null);
   const [now, setNow] = useState(Date.now());
   const [onlyWrong, setOnlyWrong] = useState(false);
+  const paper = paperById(paperId);
 
   useEffect(() => {
     if (phase !== "run" || !run) return;
@@ -125,7 +123,8 @@ export function HskApp() {
     audioRef.current?.pause();
   }, [run?.index, phase]);
 
-  const q = run ? byId(run.ids[run.index] ?? 1) : null;
+  const activeId = run?.paperId ?? paperId;
+  const q = run ? qBy(activeId, run.ids[run.index] ?? 1) : null;
   const picked = q && run ? run.picks[q.id] : undefined;
   const revealed = q && run ? Boolean(run.revealed[q.id]) : false;
   const correctNow = Boolean(q && picked && picked === q.answer);
@@ -133,35 +132,36 @@ export function HskApp() {
 
   const score = useMemo(() => {
     if (!run) return null;
+    const active = paperById(run.paperId);
+    const per = active.fullScore / active.questions.length;
     const ids = run.ids;
-    const ok = ids.filter((id) =>
-      run.mode === "practice" ? run.firstOk[id] : run.picks[id] === byId(id).answer,
-    );
-    const listenIds = ids.filter((id) => PARTS[byId(id).part].group === "listen");
-    const readIds = ids.filter((id) => PARTS[byId(id).part].group === "read");
-    const count = (list: number[]) =>
-      list.filter((id) =>
-        run.mode === "practice" ? run.firstOk[id] : run.picks[id] === byId(id).answer,
-      ).length;
+    const right = (id: number) =>
+      run.mode === "practice" ? run.firstOk[id] : run.picks[id] === qBy(run.paperId, id).answer;
+    const ok = ids.filter(right);
+    const listenIds = ids.filter((id) => partMeta(qBy(run.paperId, id)).group === "listen");
+    const readIds = ids.filter((id) => partMeta(qBy(run.paperId, id)).group === "read");
+    const count = (list: number[]) => list.filter(right).length;
     return {
       ok: ok.length,
       total: ids.length,
-      points: ok.length * 5,
-      max: ids.length * 5,
+      points: Math.round(ok.length * per),
+      max: Math.round(ids.length * per),
       listen: count(listenIds),
       listenN: listenIds.length,
       read: count(readIds),
       readN: readIds.length,
-      wrong: ids.filter((id) =>
-        run.mode === "practice" ? !run.firstOk[id] : run.picks[id] !== byId(id).answer,
-      ),
+      wrong: ids.filter((id) => !right(id)),
+      pass: active.pass,
+      full: active.fullScore,
+      per,
     };
   }, [run]);
 
   function start(nextMode = mode) {
-    const base = questionsIn(scope).map((item) => item.id);
+    const base = questionsIn(scope, paper.questions).map((item) => item.id);
     const ids = order === "random" ? shuffle(base) : base;
     setRun({
+      paperId,
       mode: nextMode,
       order,
       scope,
@@ -212,6 +212,7 @@ export function HskApp() {
     if (!run || !score || score.wrong.length === 0) return;
     const ids = run.order === "random" ? shuffle(score.wrong) : [...score.wrong];
     setRun({
+      paperId: run.paperId,
       mode: "practice",
       order: run.order,
       scope: run.scope,
@@ -227,13 +228,19 @@ export function HskApp() {
 
   return (
     <div className="min-h-screen bg-paper text-ink">
-      <audio ref={audioRef} src={AUDIO_SRC} preload="metadata" />
+      <audio ref={audioRef} src={paperById(activeId).audio} preload="metadata" />
       {phase === "home" && (
         <Home
+          papers={PAPERS}
+          paperId={paperId}
           mode={mode}
           order={order}
           scope={scope}
           py={py}
+          onPaper={(id) => {
+            setPaperId(id);
+            setScope("all");
+          }}
           onMode={setMode}
           onOrder={setOrder}
           onScope={setScope}
@@ -246,6 +253,7 @@ export function HskApp() {
           run={run}
           q={q}
           py={py}
+          hasFile={Boolean(paperById(activeId).audio)}
           onPy={setPy}
           picked={picked}
           revealed={revealed}
@@ -254,7 +262,12 @@ export function HskApp() {
           onChoose={choose}
           onPlay={() => {
             const a = audioRef.current;
-            if (a && q.audio) playClip(a, q.audio[0], q.audio[1]);
+            if (!a) return;
+            if (q.audio) playClip(a, q.audio[0], q.audio[1]);
+            else {
+              a.currentTime = 0;
+              void a.play().catch(() => {});
+            }
           }}
           onPrev={() => go(-1)}
           onNext={() => {
@@ -281,27 +294,62 @@ export function HskApp() {
 }
 
 function Home(props: {
+  papers: Paper[];
+  paperId: string;
   mode: Mode;
   order: Order;
   scope: Scope;
   py: boolean;
+  onPaper: (id: string) => void;
   onMode: (m: Mode) => void;
   onOrder: (o: Order) => void;
   onScope: (s: Scope) => void;
   onPy: (v: boolean) => void;
   onStart: () => void;
 }) {
-  const n = questionsIn(props.scope).length;
+  const paper = paperById(props.paperId);
+  const n = questionsIn(props.scope, paper.questions).length;
+  const scopes = scopesFor(paper);
+  const levels = [...new Set(props.papers.map((p) => p.level))];
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-8 sm:px-6 sm:py-12">
-      <p className="font-serif text-sm tracking-widest text-seal">新汉语水平考试 · 一级</p>
+      <p className="font-serif text-sm tracking-widest text-seal">新汉语水平考试 · 過去問</p>
       <h1 className="mt-2 font-serif text-4xl font-semibold tracking-tight sm:text-5xl">
-        HSK 1級
-        <span className="mt-1 block text-2xl font-medium text-muted sm:text-3xl">過去問 H11004</span>
+        HSK {paper.level}級
+        <span className="mt-1 block text-2xl font-medium text-muted sm:text-3xl">過去問 {paper.title}</span>
       </h1>
       <p className="mt-4 max-w-xl text-base text-ink">
-        日本の大学の授業用です。中国語の問題に、なぜその答えになるかを日本語で説明します。リスニング20問、読解20問。1問5点、200点満点、120点で合格です。
+        日本の大学の授業用です。答えたあとに、なぜその答えになるかを日本語で説明します。練習では、正しい答えを選び直さないと次へ進めません。
       </p>
+
+      <section className="mt-6 rounded-xl border border-line bg-card p-4">
+        <h2 className="text-sm font-medium text-muted">試験を選ぶ</h2>
+        {levels.map((level) => (
+          <div key={level} className="mt-3">
+            <p className="text-xs tracking-wide text-muted">{level}級</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {props.papers
+                .filter((p) => p.level === level)
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => props.onPaper(p.id)}
+                    className={
+                      "min-h-11 rounded-lg border px-3 text-sm " +
+                      (p.id === props.paperId
+                        ? "border-seal bg-seal text-card"
+                        : "border-line bg-paper text-ink")
+                    }
+                  >
+                    {p.id}
+                    <span className="ml-1 text-xs opacity-80">{p.questions.length}問</span>
+                  </button>
+                ))}
+            </div>
+          </div>
+        ))}
+      </section>
 
       <section className="mt-8 grid gap-3 sm:grid-cols-2">
         <ModeCard
@@ -321,7 +369,7 @@ function Home(props: {
       <section className="mt-6 rounded-xl border border-line bg-card p-4 sm:p-5">
         <h2 className="text-sm font-medium text-muted">出題範囲</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          {SCOPES.map((s) => (
+          {scopes.map((s) => (
             <button
               key={s.id}
               type="button"
@@ -371,7 +419,10 @@ function Home(props: {
         {props.mode === "practice" ? "練習をはじめる" : "試験をはじめる"}（{n}問）
       </button>
       <p className="mt-4 text-sm text-muted">
-        音声は本試験の録音です。再生ボタンを押すと、その問題が2回流ます。イヤホンがあると聞き取りやすいです。
+        {paper.blurb}。満点の目安は {paper.fullScore}点、合格は {paper.pass}点です。
+        {paper.audio
+          ? " リスニングは試験の録音を再生します。"
+          : " この巻は問題と解説です。音声ファイルは同梱されていません。"}
       </p>
     </main>
   );
@@ -413,6 +464,7 @@ function QuestionView(props: {
   run: RunState;
   q: Question;
   py: boolean;
+  hasFile: boolean;
   onPy: (v: boolean) => void;
   picked?: string;
   revealed: boolean;
@@ -425,7 +477,7 @@ function QuestionView(props: {
   onQuit: () => void;
 }) {
   const { q, run } = props;
-  const part = PARTS[q.part];
+  const part = partMeta(q);
   const last = run.index === run.ids.length - 1;
   const showWhy = run.mode === "practice" && (props.revealed || props.picked === q.answer);
   const pics = q.choices.some((c) => c.image);
@@ -461,13 +513,13 @@ function QuestionView(props: {
       </p>
       <p className="mt-2 text-sm leading-relaxed">{part.hint}</p>
 
-      {q.audio && (
+      {props.hasFile && (
         <button
           type="button"
           onClick={props.onPlay}
           className="mt-4 min-h-12 w-full rounded-xl bg-ink px-4 text-base font-medium text-card sm:w-auto"
         >
-          音声を再生する
+          {q.audio ? "この問題の音声を再生" : "試験音声を最初から再生"}
         </button>
       )}
 
@@ -537,7 +589,7 @@ function QuestionView(props: {
               <RubyLine parts={q.transcript} py={props.py} />
             </p>
           )}
-          <p className="mt-2 text-base leading-relaxed">{q.explain}</p>
+          <p className="mt-2 whitespace-pre-line text-base leading-relaxed">{q.explain}</p>
           {run.mode === "practice" && !props.canNext && (
             <p className="mt-3 text-sm font-medium text-seal">
               正しい答えを押し直すと、次の問題へ進めます。
@@ -582,6 +634,9 @@ function Result(props: {
     read: number;
     readN: number;
     wrong: number[];
+    pass: number;
+    full: number;
+    per: number;
   };
   py: boolean;
   onlyWrong: boolean;
@@ -606,11 +661,14 @@ function Result(props: {
       </p>
       <p className="mt-2 text-sm text-muted">
         {label} {props.score.ok} / {props.score.total}
-        {props.score.listenN > 0 && `　聞き ${props.score.listen * 5} / ${props.score.listenN * 5}点`}
-        {props.score.readN > 0 && `　読み ${props.score.read * 5} / ${props.score.readN * 5}点`}
+        {props.score.listenN > 0 &&
+          `　聞き ${Math.round(props.score.listen * props.score.per)} / ${Math.round(props.score.listenN * props.score.per)}点`}
+        {props.score.readN > 0 &&
+          `　読み ${Math.round(props.score.read * props.score.per)} / ${Math.round(props.score.readN * props.score.per)}点`}
       </p>
       <p className="mt-2 text-sm leading-relaxed">
-        この範囲の合格目安は {passLine}点（6割）です。本試験全体なら120点 / 200点です。下は、なぜその答えになるかの解説です。
+        この範囲の合格目安は {passLine}点（6割）です。巻全体なら {props.score.pass}点 / {props.score.full}
+        点です。下は、なぜその答えになるかの解説です。
       </p>
       <div className="mt-5 flex flex-wrap gap-2">
         <button type="button" onClick={props.onHome} className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm">
@@ -636,13 +694,13 @@ function Result(props: {
       </label>
       <ol className="mt-2 space-y-3 pb-10">
         {list.map((id) => {
-          const q = byId(id);
+          const q = qBy(props.run.paperId, id);
           const pick = props.run.picks[id];
           const ok = props.run.mode === "practice" ? props.run.firstOk[id] : pick === q.answer;
           return (
             <li key={id} className="rounded-xl border border-line bg-card p-4">
               <p className="text-sm text-muted">
-                第{q.id}問 · {PARTS[q.part].ja}
+                第{q.id}問 · {partMeta(q).ja}
                 <span className={"ml-2 font-medium " + (ok ? "text-ok" : "text-seal")}>
                   {ok ? "正解" : "不正解"}
                 </span>
@@ -663,7 +721,7 @@ function Result(props: {
                 )}
               </p>
               <p className="mt-2 text-sm font-medium text-ok">なぜこの答えか</p>
-              <p className="mt-1 text-sm leading-relaxed">{q.explain}</p>
+              <p className="mt-1 whitespace-pre-line text-sm leading-relaxed">{q.explain}</p>
             </li>
           );
         })}

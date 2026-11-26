@@ -1,5 +1,5 @@
 export type Seg = { py: string; hz: string };
-export type PartId = "L1" | "L2" | "L3" | "L4" | "R1" | "R2" | "R3" | "R4";
+export type PartId = string;
 export type Choice = { key: string; image?: string; segs?: Seg[] };
 export type Question = {
   id: number;
@@ -11,6 +11,11 @@ export type Question = {
   answer: string;
   transcript?: Seg[];
   explain: string;
+  /** 画面用。未指定なら PARTS を使う */
+  partJa?: string;
+  partZh?: string;
+  hint?: string;
+  group?: "listen" | "read" | "write";
 };
 
 export const PARTS: Record<
@@ -819,11 +824,16 @@ export const QUESTIONS: Question[] = [
 
 export const AUDIO_SRC = "/hsk/listening.mp3";
 
-export function questionsIn(scope: "all" | "listen" | "read" | PartId): Question[] {
-  return QUESTIONS.filter((q) => {
+export function questionsIn(
+  scope: string,
+  list: Question[] = QUESTIONS,
+): Question[] {
+  return list.filter((q) => {
+    const group = q.group ?? PARTS[q.part]?.group;
     if (scope === "all") return true;
-    if (scope === "listen") return PARTS[q.part].group === "listen";
-    if (scope === "read") return PARTS[q.part].group === "read";
+    if (scope === "listen") return group === "listen";
+    if (scope === "read") return group === "read";
+    if (scope === "write") return group === "write";
     return q.part === scope;
   });
 }
