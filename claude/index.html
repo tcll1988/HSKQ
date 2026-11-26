@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>HSK 練習</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="#/"><span class="brand-mark" lang="zh-CN">汉</span>HSK 練習</a>
+    <div class="tools">
+      <button type="button" id="btn-pinyin" class="tool" aria-pressed="true">ピンイン ON</button>
+      <span class="fontsize" role="group" aria-label="文字サイズ">
+        <button type="button" id="btn-font-down" class="tool" aria-label="文字を小さくする">A−</button>
+        <button type="button" id="btn-font-up" class="tool" aria-label="文字を大きくする">A＋</button>
+      </span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1"></main>
+
+<div id="playerbar" class="playerbar" data-state="idle" role="region" aria-label="音声プレーヤー">
+  <div class="pb-in">
+    <button type="button" id="pb-toggle" class="pb-btn pb-toggle" aria-label="再生" disabled><span aria-hidden="true"></span></button>
+    <button type="button" id="pb-stop" class="pb-btn pb-stop" aria-label="停止" disabled><span aria-hidden="true"></span></button>
+    <div class="pb-info">
+      <div class="pb-line">
+        <span id="pb-status" class="pb-status" aria-live="polite">待機中</span>
+        <span id="pb-label" class="pb-label">音声を選んでください</span>
+        <span id="pb-time" class="pb-time">0:00 / 0:00</span>
+      </div>
+      <input id="pb-seek" class="pb-seek" type="range" min="0" max="1000" value="0" aria-label="再生位置" disabled>
+    </div>
+    <label class="pb-rate"><span>速度</span>
+      <select id="pb-rate" aria-label="再生速度">
+        <option value="0.5">0.5×</option>
+        <option value="0.75">0.75×</option>
+        <option value="1" selected>1.0×</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.5">1.5×</option>
+        <option value="2">2.0×</option>
+      </select>
+    </label>
+  </div>
+</div>
+
+<!-- =========================================================
+     首页内容（老师可以直接改这里的文字）
+     data-slot="tests" 的位置会自动填入试卷和各部分的进度
+     ========================================================= -->
+<template id="tpl-home">
+  <section class="hero">
+    <p class="hero-kicker">新汉语水平考试</p>
+    <h1>HSK 1級 練習サイト</h1>
+    <p class="hero-lead">本番と同じ形式の過去問で、聴解（リスニング）と読解（リーディング）を練習しましょう。</p>
+  </section>
+
+  <div data-slot="tests"></div>
+
+  <section class="howto">
+    <h2>使い方</h2>
+    <div class="howto-grid">
+      <div class="howto-item">
+        <h3>練習モード</h3>
+        <ul>
+          <li>1問ずつ解きます。「全問」「聴解のみ」「読解のみ」、または部分ごとに選べます。</li>
+          <li><b>出題の順番</b>は「原題の順番」（第1題から順に）か「ランダム」を選べます。</li>
+          <li>間違えると、すぐに<b>正解</b>と<b>「なぜその答えが正解なのか」の解説</b>が表示されます。</li>
+          <li><b>正解を選ぶまで次の問題へは進めません。</b>解説を読んで、正しい答えを選び直してください。</li>
+          <li>最後に「一発で正解した数」が出ます。間違えた問題だけをもう一度練習することもできます。</li>
+        </ul>
+      </div>
+      <div class="howto-item">
+        <h3>試験モード</h3>
+        <ul>
+          <li>本番と同じように、聴解の録音（約15分）を最初から最後まで流しながら答えます。各問は2回ずつ流れます。</li>
+          <li>続けて読解を<b>17分</b>で解きます。時間になると自動で提出されます。</li>
+          <li>試験中は正解・不正解は表示されません。提出後に点数（200点満点・120点で合格ライン）と、全問の正解・解説を確認できます。</li>
+        </ul>
+      </div>
+      <div class="howto-item">
+        <h3>音声と表示</h3>
+        <ul>
+          <li>「再生」ボタンで再生、もう一度押すと一時停止します。画面下のプレーヤーで停止・位置の移動・速度（0.5〜2倍）を変えられます。</li>
+          <li>右上の「ピンイン」でピンインの表示／非表示、「A−／A＋」で文字の大きさを変えられます。</li>
+          <li>練習の記録はこのブラウザに自動で保存されます。別のパソコン・スマホやシークレットモードでは引き継がれません。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script src="js/core.js"></script>
+<script src="data/parts.js"></script>
+<script src="data/manifest.js"></script>
+<script src="js/player.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

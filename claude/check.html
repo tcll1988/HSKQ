@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>数据检查</title>
+<style>
+  :root { --bg: #f6f4ef; --surface: #fff; --ink: #1f1d1a; --ink-2: #5c574f; --line: #e0dbd0; --ok: #17784a; --ng: #b3261e; --warn: #8a5a00; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #151618; --surface: #1f2124; --ink: #ecebe7; --ink-2: #b7b3ab; --line: #34373c; --ok: #5cc98d; --ng: #f08a80; --warn: #f0c25a; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.7 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  .sub { color: var(--ink-2); margin: 0 0 1rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.2rem; margin: 1rem 0; }
+  .sum { font-size: 1.15rem; font-weight: 700; }
+  .ok { color: var(--ok); } .ng { color: var(--ng); } .warn { color: var(--warn); }
+  ul { padding-left: 1.2rem; margin: .4rem 0; }
+  li { margin: .25rem 0; }
+  code { background: rgba(127,127,127,.15); padding: 0 .3rem; border-radius: 4px; }
+  #progress { color: var(--ink-2); }
+</style>
+</head>
+<body>
+<main>
+  <h1>数据检查</h1>
+  <p class="sub">检查题目数据的格式、答案、图片和录音是否齐全。修改 <code>data/</code> 里的文件后，刷新这个页面即可重新检查。<br>
+  更详细的检查（重复录音、没用到的文件等）请在电脑上运行 <code>node tools/check.js</code>。</p>
+  <div class="card"><div id="summary" class="sum">检查中…</div><div id="progress"></div></div>
+  <div id="out"></div>
+  <p><a href="index.html">← 返回网站首页</a></p>
+</main>
+<script src="js/core.js"></script>
+<script src="data/parts.js"></script>
+<script src="data/manifest.js"></script>
+<script src="js/validate-core.js"></script>
+<script>
+(function () {
+  'use strict';
+  var esc = HSK.util.esc;
+  var res = HSKValidate.run(HSK);
+  var issues = res.issues.slice();
+  var items = [];
+  res.files.img.forEach(function (f) { items.push({ kind: 'img', f: f }); });
+  res.files.audio.forEach(function (f) { items.push({ kind: 'audio', f: f }); });
+  var done = 0, prog = document.getElementById('progress');
+
+  function url(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+  function probe(it, cb) {
+    var finished = false;
+    function end(ok) { if (finished) return; finished = true; if (!ok) issues.push({ level: 'error', where: it.f.where, msg: (it.kind === 'img' ? '图片' : '录音') + '读不到：' + it.f.path }); cb(); }
+    if (it.kind === 'img') {
+      var im = new Image();
+      im.onload = function () { end(true); };
+      im.onerror = function () { end(false); };
+      im.src = url(it.f.path);
+    } else {
+      var a = new Audio();
+      a.preload = 'metadata';
+      a.onloadedmetadata = function () { end(true); };
+      a.onerror = function () { end(false); };
+      setTimeout(function () { end(true); }, 15000); // 太慢时不判为错误
+      a.src = url(it.f.path);
+    }
+  }
+  var queue = items.slice(), running = 0;
+  function next() {
+    while (running < 6 && queue.length) {
+      running++;
+      probe(queue.shift(), function () { running--; done++; prog.textContent = '已检查文件 ' + done + ' / ' + items.length; if (done === items.length) report(); else next(); });
+    }
+  }
+  if (items.length) next(); else report();
+
+  function report() {
+    var errs = issues.filter(function (i) { return i.level === 'error'; });
+    var warns = issues.filter(function (i) { return i.level !== 'error'; });
+    var nq = 0;
+    (HSK.manifest || []).forEach(function (id) { var t = HSK.tests[id]; if (t) Object.keys(t.sections).forEach(function (k) { nq += (t.sections[k].questions || []).length; }); });
+    var s = document.getElementById('summary');
+    s.className = 'sum ' + (errs.length ? 'ng' : 'ok');
+    s.textContent = errs.length ? '有 ' + errs.length + ' 个错误需要修改' : (warns.length ? '没有错误（有 ' + warns.length + ' 个提醒）' : '✓ 没有发现问题');
+    prog.textContent = '试卷：' + (HSK.manifest || []).join('、') + '　题目：' + nq + ' 道　图片：' + res.files.img.length + ' 处　录音：' + res.files.audio.length + ' 处';
+    var html = '';
+    if (errs.length) html += '<div class="card"><b class="ng">错误（必须修改）</b><ul>' + errs.map(function (i) { return '<li>' + esc(i.where) + '：' + esc(i.msg) + '</li>'; }).join('') + '</ul></div>';
+    if (warns.length) html += '<div class="card"><b class="warn">提醒（请确认）</b><ul>' + warns.map(function (i) { return '<li>' + esc(i.where) + '：' + esc(i.msg) + '</li>'; }).join('') + '</ul></div>';
+    document.getElementById('out').innerHTML = html;
+  }
+})();
+</script>
+</body>
+</html>
